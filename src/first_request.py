@@ -12,7 +12,7 @@ def download_page(url: str, save_path: Path) -> None:
         print(f"Content-type: {response.headers.get('content-type')}")
     except httpx.HTTPStatusError as e:
         print(f"Error HTTP: {e.response.status_code}")
-    except httpx.RequesError as e:
+    except httpx.RequestError as e:
         print(f"Network error: {e}")
 
 if __name__ == "__main__":
