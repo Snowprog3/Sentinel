@@ -4,9 +4,17 @@ version = "0.1.0"
 requires-python = ">=3.12"
 
 dependencies = [
-    "httpx>=0.28",
+    "httpx[cli]>=0.28",
     "loguru>=0.7",
 ]
 
 [tool.ruff]
 line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
