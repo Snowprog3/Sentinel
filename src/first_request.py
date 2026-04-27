@@ -1,5 +1,7 @@
-import httpx
 from pathlib import Path
+
+import httpx
+
 
 def download_page(url: str, save_path: Path) -> None:
     """Parsing of the probe page"""
