@@ -1,4 +1,5 @@
 """First async downloader"""
+
 import asyncio
 from pathlib import Path
 
@@ -13,6 +14,7 @@ async def download_page(url: str, save_path: Path) -> None:
         save_path.write_bytes(res.content)
         print(f"Save {save_path}: length: {len(res.content)} bytes")
 
+
 async def main() -> None:
     """Use"""
     url = "https://books.toscrape.com"
@@ -22,4 +24,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-        
