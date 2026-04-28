@@ -1,22 +1,12 @@
+import pytest
+
 from src.basics import build_report, square
 
 
-def test_square_positive():
+@pytest.mark.parametrize("x, res", [(5, 25), (0, 0), (-3, 9)])
+def test_square(x, res):
     """Check - quadrat number is true"""
-    result = square(5)
-    assert result == 25
-
-
-def test_square_zero():
-    "Check - if zero - function return zero"
-    result = square(0)
-    assert result == 0
-
-
-def test_square_negative():
-    """Check - quadrat of negative number is +"""
-    result = square(-3)
-    assert result == 9
+    assert square(x) == res
 
 
 def test_build_report():

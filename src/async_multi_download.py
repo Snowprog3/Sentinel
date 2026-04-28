@@ -37,7 +37,7 @@ async def main() -> None:
         await asyncio.gather(*tasks)
 
     elapsed = time.time() - start
-    print(f"\n elapsed time is {elapsed:.2f} seconds")
+    print(f"\nelapsed time is {elapsed:.2f} seconds")
 
 
 if __name__ == "__main__":
