@@ -3,6 +3,10 @@ site_url: str = "https://books.toscrape.com"
 is_recheable: bool = True
 
 
+def square(num: int) -> int:
+    return num**2
+
+
 def build_report(name: str, url: str) -> str:
     """Form string_report about site"""
     return f"Site '{name}' ({url}) is beginning to parsing"
