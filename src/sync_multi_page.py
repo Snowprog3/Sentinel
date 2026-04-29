@@ -1,4 +1,3 @@
-import asyncio
 import os
 import time
 from pathlib import Path
@@ -9,20 +8,20 @@ for var in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy
     os.environ.pop(var, None)
 
 
-async def download_one(client: httpx.AsyncClient, url: str, save_path: Path) -> None:
+def download_one(url: str, client: httpx.Client, save_path: Path) -> Path:
     try:
-        response = await client.get(url, timeout=10.0)
+        response = client.get(url, timeout=10.0)
         response.raise_for_status()
         save_path.parent.mkdir(parents=True, exist_ok=True)
         save_path.write_text(response.text, encoding="utf-8")
-        print(f"[OK] {url} -> {save_path} (status: {response.status_code})")
+        print(f"Save text from {url} into {save_path}")
     except httpx.HTTPStatusError as e:
-        print(f"HTTPError {url}: {e.response.status_code}")
+        print(f"HTTPError is {e.response.status_code}")
     except httpx.RequestError as e:
-        print(f"NetworkError {url}: {e}")
+        print(f"Network Error is {e}")
 
 
-async def main() -> None:
+def main() -> None:
     urls = [
         "http://books.toscrape.com",
         "http://httpbin.org/get",
@@ -33,16 +32,14 @@ async def main() -> None:
 
     start = time.time()
 
-    async with httpx.AsyncClient() as client:
-        tasks = [
-            download_one(client, url, output_dir / f"{url.split('/')[-1] or 'index'} .html")
-            for url in urls
-        ]
-        await asyncio.gather(*tasks)
+    with httpx.Client(proxy=None) as client:
+        for url in urls:
+            download_one(url, client, output_dir / f"{url.split('/')[-1] or 'index'}.html")
 
     elapsed = time.time() - start
-    print(f"\nelapsed time is {elapsed:.2f} seconds")
+
+    print(f"Elapsed {elapsed:.2f} seconds")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

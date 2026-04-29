@@ -10,7 +10,8 @@ def build_filename_from_url(url: str, output_dir: str = "data/raw") -> Path:
         filename = "index.html"
     else:
         filename = Path(path_part).name or "index.html"
-    return Path(output_dir) /filename
+    return Path(output_dir) / filename
+
 
 def ensure_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
