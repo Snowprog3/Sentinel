@@ -10,6 +10,9 @@ def build_filename_from_url(url: str, output_dir: str = "data/raw") -> Path:
         filename = "index.html"
     else:
         filename = Path(path_part).name or "index.html"
+    base = Path(filename)
+    if not base.suffix:
+        filename = f"{filename}.html"
     return Path(output_dir) / filename
 
 
