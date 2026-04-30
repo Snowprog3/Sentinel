@@ -24,7 +24,7 @@ def validate_url(url: str) -> bool:
     """Check validate URL"""
     try:
         parser = urlparse(url)
-        return parser.scheme in {"https", "https"} and bool(parser.netloc)
+        return parser.scheme in ("http", "https") and bool(parser.netloc)
     except (ValueError, AttributeError):
         return False
 
