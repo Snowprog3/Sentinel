@@ -2,10 +2,10 @@
 set -euo pipefail
 
 echo "Launch linting code..."
-uv run ruff check --fix src/
+uv run ruff check --fix .
 
-echo "\nLaunch format code..."
-uv run ruff format src/
+echo "Launch format code..."
+uv run ruff format .
 echo ""
 
 
