@@ -2,6 +2,8 @@ from pathlib import Path
 
 import httpx
 
+from error_handler import handle_exception
+
 
 def download_page(url: str, save_path: Path) -> None:
     """Parsing of the probe page"""
@@ -9,11 +11,11 @@ def download_page(url: str, save_path: Path) -> None:
         response = httpx.get(url, timeout=10.0)
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
-        """Error on the server"""
-        print(f"Error HTTP: {e.response.status_code}")
+        handle_exception(e)
+        return
     except httpx.RequestError as e:
-        """Network error"""
-        print(f"Network error: {e}")
+        handle_exception(e)
+        return
 
     """Not errors and save date into file"""
     save_path.parent.mkdir(parents=True, exist_ok=True)
