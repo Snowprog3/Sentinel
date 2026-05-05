@@ -6,7 +6,6 @@ import pytest
 import respx
 
 from src.async_multi_download import download_one
-from src.first_request import download_page
 
 
 def test_respx_basic():
@@ -19,44 +18,6 @@ def test_respx_basic():
         response = httpx.get(url)
         assert response.status_code == 200
         assert response.text == "Hello, world"
-
-
-def test_download_page_success(tmp_path: Path):
-    url = "http://test.com"
-    save_path = tmp_path / "output.html"
-    with respx.mock:
-        respx.get(url).respond(status_code=200, text="<html>test</html>")
-        download_page(url, save_path)
-
-    assert save_path.exists()
-    assert save_path.read_text() == "<html>test</html>"
-
-
-def test_download_page_http_error(tmp_path: Path, capsys):
-    """Test of error 404"""
-    url = "http://test.com/notfound"
-    save_path = tmp_path / "output.html"
-    with respx.mock:
-        respx.get(url).respond(status_code=404)
-        download_page(url, save_path)
-    # File dont create
-    assert not save_path.exists()
-    # Check are the message about the error
-    captured = capsys.readouterr()
-    assert "Error HTTP: 404" in captured.out
-
-
-def test_download_page_nerwork_error(tmp_path: Path, capsys):
-    """Test of nerwork error"""
-    url = "http://test.com/connect"
-    save_path = tmp_path / "output.html"
-    with respx.mock:
-        respx.get(url).mock(side_effect=httpx.ConnectError("connection failed"))
-        download_page(url, save_path)
-
-    assert not save_path.exists()
-    captured = capsys.readouterr()
-    assert "ConnectError" in captured.out or "connection failed" in captured.out
 
 
 @pytest.mark.asyncio

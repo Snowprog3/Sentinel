@@ -23,5 +23,5 @@ def sample_urls():
 def output_dir(tmp_path):
     """Temp directory for savings files wich emulated 'data/raw'"""
     raw_dir = tmp_path / "data/raw"
-    raw_dir.parent.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
     return raw_dir
