@@ -21,6 +21,8 @@ async def download_one(client: httpx.AsyncClient, url: str, save_path: Path) -> 
     except httpx.HTTPStatusError as e:
         handle_exception(e)
         return
+    except httpx.ReadTimeout:
+        print(f"[TIMEOUT] {url} -> сервер не ответил за 10 секунд")
     except httpx.RequestError as e:
         handle_exception(e)
         return
@@ -29,7 +31,7 @@ async def download_one(client: httpx.AsyncClient, url: str, save_path: Path) -> 
 async def main() -> None:
     urls = [
         "http://books.toscrape.com",
-        "http://httpbin.org/get",
+        "http://httpbin.com/get",
         "http://books.toscrape.com/catalogue/page-2.html",
     ]
 
