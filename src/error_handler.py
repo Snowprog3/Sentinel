@@ -4,7 +4,7 @@ import httpx
 def classify_http_handler(exc: Exception) -> str:
     """Return recommend act while HTTP error"""
     if isinstance(exc, httpx.HTTPStatusError):
-        status = exc.response.status_code()
+        status = exc.response.status_code
         if status in (408, 429, 500, 502, 503, 504):
             return "retry"
         if status in (403, 404):

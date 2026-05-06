@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import httpx
@@ -6,12 +5,12 @@ import pytest
 import respx
 
 from src.async_multi_download import download_one
+from src.proxy import proxy
 
 
 def test_respx_basic():
     # Удаляем прокси-переменные
-    for var in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]:
-        os.environ.pop(var, None)
+    proxy()
     url = "http://test.com"
     with respx.mock:
         respx.get(url).respond(status_code=200, text="Hello, world")

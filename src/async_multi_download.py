@@ -1,14 +1,14 @@
 import asyncio
-import os
 import time
 from pathlib import Path
 
 import httpx
 
 from error_handler import handle_exception
+from src.proxy import proxy
+from src.urls import TEST_URLS
 
-for var in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]:
-    os.environ.pop(var, None)
+proxy()
 
 
 async def download_one(client: httpx.AsyncClient, url: str, save_path: Path) -> None:
@@ -23,17 +23,13 @@ async def download_one(client: httpx.AsyncClient, url: str, save_path: Path) -> 
         return
     except httpx.ReadTimeout:
         print(f"[TIMEOUT] {url} -> сервер не ответил за 10 секунд")
+        return
     except httpx.RequestError as e:
         handle_exception(e)
         return
 
 
 async def main() -> None:
-    urls = [
-        "http://books.toscrape.com",
-        "http://httpbin.com/get",
-        "http://books.toscrape.com/catalogue/page-2.html",
-    ]
 
     output_dir = Path("data/raw")
 
@@ -42,7 +38,7 @@ async def main() -> None:
     async with httpx.AsyncClient() as client:
         tasks = [
             download_one(client, url, output_dir / f"{url.split('/')[-1] or 'index'}.html")
-            for url in urls
+            for url in TEST_URLS
         ]
         await asyncio.gather(*tasks)
 

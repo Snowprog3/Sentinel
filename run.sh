@@ -8,7 +8,7 @@ echo "Launch format code..."
 uv run ruff format .
 echo ""
 
-
+ 
 echo "Launch parser..."
-python3 src/async_multi_download.py
+python3 mini_project.py
 echo "Done"
