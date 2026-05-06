@@ -3,10 +3,10 @@ import time
 
 import httpx
 
-from src.error_handler import handle_exception
-from src.proxy import proxy
-from src.urls import TEST_URLS
-from src.utils import build_filename_from_url, ensure_dir
+from error_handler import handle_exception
+from proxy import proxy
+from urls import TEST_URLS
+from utils import build_filename_from_url, ensure_dir
 
 proxy()
 

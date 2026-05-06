@@ -1,0 +1,21 @@
+# Виртуальное окружение — будет создано заново
+.venv/
+
+# Временные файлы
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+
+# Скачанные страницы — не нужны в образе
+data/raw/
+
+# Секреты
+.env
+
+# Git-история и служебные файлы
+.git
+.gitignore
+.gitattributes
+Dockerfile*
+docker-compose*

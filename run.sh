@@ -10,5 +10,5 @@ echo ""
 
  
 echo "Launch parser..."
-python3 mini_project.py
+uv run python3 src/mini_project.py
 echo "Done"

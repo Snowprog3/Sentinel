@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from mini_project import download_one
+from src.mini_project import download_one
 from src.proxy import proxy
 from src.utils import build_filename_from_url
 
