@@ -11,9 +11,11 @@ from src.utils import build_filename_from_url, ensure_dir
 proxy()
 
 
-async def download_one(client: httpx.AsyncClient, url: str) -> tuple[str, bool]:
+async def download_one(
+    client: httpx.AsyncClient, url: str, output_dir: str = "data/raw"
+) -> tuple[str, bool]:  # noqa
     """Download page and return (raw_page, True/False)"""
-    save_path = build_filename_from_url(url)
+    save_path = build_filename_from_url(url, output_dir)
     try:
         ensure_dir(save_path)
         response = await client.get(url, timeout=10.0)
