@@ -1,66 +1,112 @@
 # Sentinel
 
-Распределенный агрегатор данных и система мониторинга
-Учебный проект для освоения профессии Data Extraction Engineer
+Учебный проект по извлечению данных с веба: параллельная и последовательная загрузка страниц, сохранение сырого HTML и разбор с помощью **parsel**. В репозитории заложена заготовка под инфраструктуру (PostgreSQL, Redis, переменные окружения, Docker).
 
+## Возможности
 
-## Opportunities
+- **Асинхронная загрузка** через `httpx.AsyncClient` (`src/mini_project.py`, `src/async_multi_download.py`).
+- **Синхронная загрузка** через `httpx.Client` (`src/sync_multi_page.py`).
+- **Сохранение HTML** в `data/raw/` (каталог в `.gitignore`).
+- **Разбор страницы** — извлечение заголовка и цены для демо-сайта (`src/parser.py`).
+- **Обработка ошибок** — классификация `httpx`-исключений с подсказкой действия: `retry` / `skip` / `abort` (`src/error_handler.py`); повторные запросы по этой логике пока не реализованы.
+- **Тесты** — `pytest`, `pytest-asyncio`, моки HTTP через `respx`; фикстуры в `tests/fixtures/`.
+- **Качество кода** — `ruff` (линт и форматирование).
 
-- асинхронная и синхронная загрузка веб-страниц;
-- сохранение raw HTML в локальном хранилище;
-- классификация HTTP-ошибок и автоматический выбор действий (retry, abort, skip);
-- полный набор unit, -mock тестов;
-- линтинг и форматирование кода через ruff.
+## Структура репозитория
 
+| Путь | Назначение |
+|------|------------|
+| `src/mini_project.py` | Основная точка входа по умолчанию: async-загрузка списка URL, итоговая статистика. |
+| `src/async_multi_download.py` | Альтернативный async-скрипт (пути к файлам через `pathlib`). |
+| `src/sync_multi_page.py` | Синхронный цикл загрузки. |
+| `src/parser.py` | Парсинг HTML (пример для books.toscrape). |
+| `src/utils.py` | Имена файлов из URL, проверка URL, вспомогательные функции для путей. |
+| `src/urls.py` | Список тестовых URL. |
+| `src/config.py` | Чтение настроек из окружения (БД, Redis, таймаут, `DEBUG`) — **пока не подключён к загрузчикам**, используется как основа для следующих шагов. |
+| `src/proxy.py` | Сброс переменных прокси в окружении перед запросами. |
+| `tests/` | Unit- и async-тесты. |
+| `run.sh` | Линт → формат → запуск `mini_project`. |
+| `docker-compose.yaml` | Сервис `parser` + PostgreSQL + Redis (для будущей интеграции с кодом). |
 
-## Quick start
+## Требования
 
-1. Installing uv (https://docs.astral.sh/uv/)
-2. Clone repo
-       ```bash
-   git clone <url>
-   cd sentinel
+- Python **3.12+**
+- [uv](https://docs.astral.sh/uv/) (рекомендуется) или другой способ создать окружение с зависимостями из `pyproject.toml`.
 
-3. Install dependinces 
-    `uv sync`
+## Быстрый старт (локально)
 
-4. Launch asynchronyous downloader:
 ```bash
-./run.sh
+git clone <repository-url>
+cd sentinel
+uv sync
+```
 
-# Structura of projects
-`src/` - primary code of parser
-`tests/` - tests
-    `fixtures/` - etalon files for test`s regression
-`data/raw/` - download page (not commit)
-`./run.sh` - launch script with linting and formater ruff
+Запуск основного примера:
+
+```bash
+uv run python src/mini_project.py
+```
+
+Полный цикл из скрипта (исправление линтом, форматирование, затем тот же загрузчик):
+
+```bash
+chmod +x run.sh
+./run.sh
+```
 
 ## Команды разработки
 
 | Команда | Описание |
 |---------|----------|
-| `uv run ruff check .` | Проверка кода линтером |
-| `uv run ruff format .` | Форматирование кода |
-| `uv run pytest -v` | Запуск всех тестов |
-| `uv run python src/async_multi_download.py` | Запуск асинхронного парсера |
-| `uv run python src/first_request.py` | Запуск синхронного парсера |
-| `./run.sh` | Полный цикл: линтинг → форматирование → запуск |
+| `uv run ruff check .` | Проверка стиля и очевидных ошибок |
+| `uv run ruff format .` | Форматирование |
+| `uv run pytest -v` | Все тесты |
+
+Дополнительные точки входа:
+
+| Команда | Описание |
+|---------|----------|
+| `uv run python src/async_multi_download.py` | Асинхронная загрузка (альтернативная реализация) |
+| `uv run python src/sync_multi_page.py` | Синхронная загрузка |
+
+## Docker
+
+Сборка и запуск только контейнера с приложением (точка входа — `src/mini_project.py`):
+
+```bash
+docker build -t sentinel:latest .
+docker run --rm -v "$(pwd)/data:/app/data" sentinel:latest
+```
+
+Через Compose поднимаются парсер (тот же образ), PostgreSQL и Redis. Учтите: приложение в текущем виде **не обязано** использовать БД и Redis — сервисы в `docker-compose.yaml` подготовлены под дальнейшее развитие.
+
+```bash
+cp .env.example .env
+# Заполните DB_USER, DB_PASSWORD, DB_NAME и остальное по необходимости
+
+docker compose up --build
+```
+
+Тома: `./data` → `/app/data`, `./logs` → `/app/logs`.
 
 ## Переменные окружения
 
-Скопируйте `.env.example` в `.env` и заполните реальными значениями (если потребуется).
-Сейчас проект работает без дополнительных переменных, но структура готова для будущих интеграций.
+Шаблон — [.env.example](.env.example). Часть полей совпадает с `src/config.py`:
 
-## Backlog 
-Заменить print на loguru (логирование).
+- **БД:** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- **Redis:** `REDIS_HOST` (в примере также есть `REDIS_PORT` для будущего использования)
+- **Приложение:** `REQUEST_TIMEOUT` (в коде конфига — дефолт 10 сек), `DEBUG` (`true` / `false`)
 
-Добавить поддержку Docker и docker-compose.
+Файл `.env` не коммитится (см. `.gitignore`).
 
-Подключить базу данных PostgreSQL через SQLAlchemy.
+## Известные ограничения и идеи на будущее
 
-Настроить CI/CD в GitLab.
+- Повтор запросов по результату `classify_http_handler` не реализован.
+- Для большого числа URL не хватает явного лимита параллелизма (`Semaphore`) и настройки лимитов пула `httpx`.
+- Логирование в коде в основном через `print`; зависимость `loguru` есть, но ещё не переведены все сообщения.
+- Имена файлов из URL могут совпадать для разных адресов — при росте списка ссылок стоит добавить уникализацию (хост, хэш URL и т.д.).
+- CI/CD и нагрузочные тесты на 100+ URL — в планах.
 
-Добавить асинхронный лимит запросов (asyncio.Semaphore).
+## Лицензия и назначение
 
-Написать нагрузочный тест для 100+ URL.
-
+Проект учебный: демонстрация практик Data Extraction Engineer (HTTP-клиент, async, парсинг, тесты, контейнеризация). Уважайте `robots.txt` и условия использования сайтов при реальных сборах данных.
