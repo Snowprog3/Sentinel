@@ -16,6 +16,7 @@ def sample_urls():
         "http://books.toscrape.com",
         "http://httpbin.com/get",
         "http://books.toscrape.com/catalogue/page-2.html",
+        "http://example.com/a/b/c",
     ]
 
 
