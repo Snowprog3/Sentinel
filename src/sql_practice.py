@@ -1,17 +1,15 @@
 import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-from database import async_sessionmaker
-from crud import insert_book, get_book_by_title, get_books, update_price, delete_book, count_books
+
+from crud import count_books, get_book_by_title, get_books, insert_book, update_price
+from database import AsyncSessionLocal
 from schemas import BookCreate
 
-from database import AsyncSessionLocal
 
 async def main():
     new_book = BookCreate(
-        title = "A Light in the Attic",
-        price = "f100.3",
-        url = "http://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html"
-
+        title="A Light in the Attic",
+        price="f100.3",
+        url="http://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html",
     )
     async with AsyncSessionLocal() as session:
         inserted = await insert_book(session, new_book)

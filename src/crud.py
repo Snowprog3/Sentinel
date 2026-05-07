@@ -1,7 +1,9 @@
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from models import Book
 from schemas import BookCreate
+
 
 async def insert_book(session: AsyncSession, book: BookCreate) -> Book:
     """Insert new book and return ORM object"""
@@ -12,17 +14,20 @@ async def insert_book(session: AsyncSession, book: BookCreate) -> Book:
     await session.refresh(db_book)
     return db_book
 
+
 async def get_books(session: AsyncSession, limit: int = 10, offset: int = 0) -> list[Book]:
     """Return list of books with pagination"""
     stmt = select(Book).limit(limit).offset(offset)
     result = await session.execute(stmt)
     return result.scalars().all()
 
+
 async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
     """Return book by title"""
     stmt = select(Book).where(Book.title == title)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
 
 async def update_price(session: AsyncSession, book_id: int, new_price: str) -> None:
     """Update book`s price by book_id"""
@@ -33,12 +38,19 @@ async def update_price(session: AsyncSession, book_id: int, new_price: str) -> N
 
 async def delete_book(session: AsyncSession, book_id: int) -> None:
     """Delete book by book_id"""
-    stmt = delete(Book). where(Book.id == book_id)
+    stmt = delete(Book).where(Book.id == book_id)
     await session.execute(stmt)
     await session.commit()
 
+
 async def count_books(session: AsyncSession) -> int:
-    """Count the books"""    
+    """Count the books"""
     stmt = select(func.count(Book.id))
     result = await session.execute(stmt)
     return result.scalar()
+
+
+async def find_books_by_raw_field(session: AsyncSession, field: str, value: str) -> list[Book]:
+    stmt = select(Book).where(Book.raw_data[field].as_string() == value)
+    result = await session.execute(stmt)
+    return result.scalars().all()
