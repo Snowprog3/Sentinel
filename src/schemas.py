@@ -16,4 +16,4 @@ class BookOut(BaseModel):
     raw_data: dict | None = None
 
     class Config:
-        from_attrubutes = True
+        from_attributes = True
