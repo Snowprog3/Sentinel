@@ -8,7 +8,7 @@ for var in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy
     os.environ.pop(var, None)
 
 
-def download_one(url: str, client: httpx.Client, save_path: Path) -> Path:
+def download_one(url: str, client: httpx.Client, save_path: Path) -> None:
     try:
         response = client.get(url, timeout=10.0)
         response.raise_for_status()

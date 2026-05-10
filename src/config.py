@@ -1,15 +1,17 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
     DB_HOST: str
     DB_USER: str
     DB_NAME: str
-    DB_PORT: int
+    DB_PORT: int = 5432
     DB_PASS: str
 
     REDIS_HOST: str
-    REDIS_PORT: int
+    REDIS_PORT: int = 6379
 
     REQUEST_TIMEOUT: float
     DEBUG: bool
@@ -17,10 +19,6 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL(self) -> str:  # noqa
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 settings = Settings()

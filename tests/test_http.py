@@ -41,7 +41,7 @@ async def test_download_one_http_error(tmp_path: Path, capsys):
     async with httpx.AsyncClient() as client:
         with respx.mock:
             respx.get(url).respond(status_code=500)
-            await download_one(client, url, save_path)
+            await download_one(client, url, str(save_path))
 
     expected_name = build_filename_from_url(url, str(tmp_path)).name
     saved_file = tmp_path / expected_name

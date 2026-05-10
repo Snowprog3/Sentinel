@@ -19,14 +19,17 @@ async def get_books(session: AsyncSession, limit: int = 10, offset: int = 0) -> 
     """Return list of books with pagination"""
     stmt = select(Book).limit(limit).offset(offset)
     result = await session.execute(stmt)
-    return result.scalars().all()
+    books = result.scalars().all()
+    return list(books)
 
 
 async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
     """Return book by title"""
     stmt = select(Book).where(Book.title == title)
     result = await session.execute(stmt)
-    return result.scalar_one_or_none()
+    # Добавляем явное преобразование в list()
+    book_seq = result.scalars().all()
+    return list(book_seq)
 
 
 async def update_price(session: AsyncSession, book_id: int, new_price: str) -> None:
@@ -43,7 +46,7 @@ async def delete_book(session: AsyncSession, book_id: int) -> None:
     await session.commit()
 
 
-async def count_books(session: AsyncSession) -> int:
+async def count_books(session: AsyncSession) -> int | None:
     """Count the books"""
     stmt = select(func.count(Book.id))
     result = await session.execute(stmt)
@@ -53,4 +56,5 @@ async def count_books(session: AsyncSession) -> int:
 async def find_books_by_raw_field(session: AsyncSession, field: str, value: str) -> list[Book]:
     stmt = select(Book).where(Book.raw_data[field].as_string() == value)
     result = await session.execute(stmt)
-    return result.scalars().all()
+    books = result.scalars().all()
+    return list(books)
