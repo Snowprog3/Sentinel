@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class BookCreate(BaseModel):
@@ -9,11 +9,10 @@ class BookCreate(BaseModel):
 
 
 class BookOut(BaseModel):
+    model_config = ConfigDict(from_attrubutes=True)
     id: int
     title: str
     price: str | None
     url: str
     raw_data: dict | None = None
 
-    class Config:
-        from_attributes = True

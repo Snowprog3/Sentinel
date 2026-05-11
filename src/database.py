@@ -1,4 +1,4 @@
-"""Database connection utilites for PostgreSQL"""
+"""Database connection utilities for PostgreSQL"""
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
