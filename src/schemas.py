@@ -15,4 +15,3 @@ class BookOut(BaseModel):
     price: str | None
     url: str
     raw_data: dict | None = None
-
