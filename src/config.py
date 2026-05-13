@@ -1,9 +1,16 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Вычисляем корень проекта Sentinel (два уровня вверх от config.py)
+SENTINEL_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
-
+    model_config = SettingsConfigDict(
+        env_file=str(SENTINEL_ROOT / ".env"),
+        env_file_encoding="utf-8",
+    )
     DB_HOST: str
     DB_USER: str
     DB_NAME: str

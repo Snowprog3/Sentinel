@@ -6,7 +6,12 @@
 #     https://docs.scrapy.org/en/latest/topics/settings.html
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+import sys
+from pathlib import Path
 
+SENTINEL_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(SENTINEL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SENTINEL_ROOT))
 BOT_NAME = "bookstore"
 
 SPIDER_MODULES = ["bookstore.spiders"]
@@ -60,6 +65,7 @@ DOWNLOAD_DELAY = 1
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
     "bookstore.pipelines.ValidationPipeline": 100,
+    "bookstore.pipelines.DatabasePipeline": 200,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)

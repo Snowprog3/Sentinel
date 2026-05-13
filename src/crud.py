@@ -1,8 +1,8 @@
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Book
-from schemas import BookCreate
+from src.models import Book
+from src.schemas import BookCreate
 
 
 async def insert_book(session: AsyncSession, book: BookCreate) -> Book:

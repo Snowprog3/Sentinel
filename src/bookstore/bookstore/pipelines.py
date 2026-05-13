@@ -7,9 +7,38 @@
 # useful for handling different item types with a single interface
 import logging
 
+from scrapy import Item, Spider
 from scrapy.exceptions import DropItem
+from sqlalchemy.exc import IntegrityError
+
+from src.crud import insert_book
+from src.database import AsyncSessionLocal
+from src.schemas import BookCreate
 
 logger = logging.getLogger(__name__)
+
+
+class DatabasePipeline:
+    async def _save_book(self, item: Item):
+        """Async logic of saving one book"""
+        book_data = BookCreate(
+            title=item.get("title"),
+            price=item.get("price"),
+            url=item.get("url"),
+        )
+        async with AsyncSessionLocal() as session:
+            await insert_book(session, book_data)
+
+    async def process_item(self, item: Item, spider: Spider) -> Item:
+        try:
+            await self._save_book(item)
+            logger.info(f"Saved in DB: {item['title']}")
+        except IntegrityError:
+            logger.warning(f"Duplicate skipping: {item['title']}")
+        except Exception as e:
+            logger.error(f"Failed to save {item['title']}: {e}")
+            raise DropItem(f"Database error = {e}")
+        return item
 
 
 class ValidationPipeline:
