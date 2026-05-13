@@ -58,3 +58,9 @@ async def find_books_by_raw_field(session: AsyncSession, field: str, value: str)
     result = await session.execute(stmt)
     books = result.scalars().all()
     return list(books)
+
+
+async def book_exists_by_url(session: AsyncSession, url: str) -> bool:
+    stmt = select(Book).where(Book.url == url)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None

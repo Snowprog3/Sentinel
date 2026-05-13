@@ -13,3 +13,4 @@ class BookItem(Item):
     price = Field()
     availability = Field()
     title = Field()
+    raw_data = Field()
