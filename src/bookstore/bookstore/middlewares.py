@@ -4,7 +4,14 @@
 # https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
 # useful for handling different item types with a single interface
+import asyncio
+import logging
+import random
+
 from scrapy import signals
+from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
+
+logger = logging.getLogger(__name__)
 
 
 class BookstoreSpiderMiddleware:
@@ -96,3 +103,35 @@ class BookstoreDownloaderMiddleware:
 
     def spider_opened(self, spider):
         spider.logger.info("Spider opened: %s" % spider.name)
+
+
+class RetryWithBackoffMiddleware:
+    MAX_RETRIES = 3
+    BASE_DELAY = 1.0  # секунд
+    BACKOFF_MULTIPLIER = 2  # экспонента
+    JITTER = 0.3  # ±30%
+
+    async def process_exception(self, request, exception, spider):
+        retry_count = request.meta.get("retry_count", 0) + 1
+        if retry_count > self.MAX_RETRIES:
+            logger.warning(f"Giving up on {request.url} after {retry_count} retries")
+            return None  # прекращаем, ошибка пойдёт дальше
+
+        # Решаем, заслуживает ли ошибка повтора
+        if isinstance(exception, (TimeoutError, DNSLookupError, ConnectionRefusedError)):
+            logger.info(
+                f"Retrying {request.url} due to {exception.__class__.__name__} (attempt {retry_count})"
+            )
+        else:
+            # для остальных ошибок не повторяем
+            return None
+
+        # Вычисляем задержку с jitter
+        delay = self.BASE_DELAY * (self.BACKOFF_MULTIPLIER ** (retry_count - 1))
+        jitter = random.uniform(-self.JITTER * delay, self.JITTER * delay)
+        delay = max(0.1, delay + jitter)  # не меньше 100 мс
+
+        logger.debug(f"Retrying {request.url} in {delay:.2f} seconds")
+        await asyncio.sleep(delay)
+        meta = {**request.meta, "retry_count": retry_count}
+        return request.replace(meta=meta, dont_filter=True)

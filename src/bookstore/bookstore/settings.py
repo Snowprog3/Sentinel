@@ -55,9 +55,9 @@ DOWNLOAD_DELAY = 1
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-# DOWNLOADER_MIDDLEWARES = {
-#    "bookstore.middlewares.BookstoreDownloaderMiddleware": 543,
-# }
+DOWNLOADER_MIDDLEWARES = {
+    "bookstore.middlewares.RetryWithBackoffMiddleware": 500,
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html

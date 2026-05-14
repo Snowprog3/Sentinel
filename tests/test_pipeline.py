@@ -12,7 +12,7 @@ def test_valid_item():
     item["url"] = "http://books.toscrape.com/test"
     item["raw_data"] = {"html": "<p>Test</p>"}
 
-    processed = pipeline.process_item(item, None)
+    processed = pipeline.process_item(item)
     assert processed["title"] == "Test Book"
     assert processed["price"] == "10.0"  # очищено
     assert processed["url"] == "http://books.toscrape.com/test"
@@ -25,4 +25,4 @@ def test_invalid_url():
     item["price"] = "£10.00"
     item["url"] = "not-a-url"
     with pytest.raises(DropItem):
-        pipeline.process_item(item, None)
+        pipeline.process_item(item)

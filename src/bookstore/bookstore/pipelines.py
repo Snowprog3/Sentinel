@@ -8,7 +8,7 @@
 import logging
 
 from pydantic import ValidationError
-from scrapy import Item, Spider, signals
+from scrapy import Item, signals
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import IntegrityError
 
@@ -50,7 +50,7 @@ class DatabasePipeline:
             await insert_book(session, book_data)
         return True
 
-    async def process_item(self, item: Item, spider: Spider) -> Item:
+    async def process_item(self, item: Item) -> Item:
         try:
             if await self._save_book(item):
                 logger.debug("Saved to DB: %s", item.get("title"))
@@ -64,7 +64,7 @@ class DatabasePipeline:
 
 
 class ValidationPipeline:
-    def process_item(self, item: Item, spider: Spider) -> Item:
+    def process_item(self, item: Item) -> Item:
         # 1. Save raw data
         raw = RawBookItem(**dict(item))
 

@@ -22,3 +22,23 @@ class TestBookContracts:
         norm = NormalizedBook(title=parsed.title, price=parsed.price, url=str(parsed.url))
         assert isinstance(norm.url, str)
         assert norm.url == "http://example.com/"
+
+
+class TestFullContractPipeline:
+    """Проверяет полный цикл Raw → Parsed → Normalized."""
+
+    def test_full_valid_flow(self):
+        raw = RawBookItem(title="A Book", price="£12.34", url="http://books.toscrape.com/test")
+        parsed = ParsedBook(title=raw.title, price=raw.price, url=raw.url)
+        norm = NormalizedBook(title=parsed.title, price=parsed.price, url=str(parsed.url))
+        assert norm.price == 12.34
+        assert norm.url == "http://books.toscrape.com/test"
+        assert norm.title == "A Book"
+
+    def test_missing_title_fails(self):
+        with pytest.raises(ValidationError):
+            ParsedBook(title=None, price="£10.00", url="http://books.toscrape.com/test")
+
+    def test_invalid_url_fails(self):
+        with pytest.raises(ValidationError):
+            ParsedBook(title="A Book", price="£10.00", url="invalid-url")
