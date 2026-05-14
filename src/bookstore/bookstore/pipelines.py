@@ -8,39 +8,54 @@
 import logging
 
 from pydantic import ValidationError
-from scrapy import Item, Spider
+from scrapy import Item, Spider, signals
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import IntegrityError
 
-from src.crud import book_exists_by_url, insert_book
+from src.crud import insert_book
 from src.database import AsyncSessionLocal
+from src.redis_client import is_url_processed
 from src.schemas import BookCreate, NormalizedBook, ParsedBook, RawBookItem
 
 logger = logging.getLogger(__name__)
 
 
 class DatabasePipeline:
+    def __init__(self):
+        self.duplicates_skipped = 0
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        pipeline = cls()
+        crawler.signals.connect(pipeline.spider_closed, signal=signals.spider_closed)
+        return pipeline
+
+    async def spider_closed(self, spider):
+        logger.info(f"Total duplicates skipped: {self.duplicates_skipped}")
+
     async def _save_book(self, item: Item) -> bool:
         """Return True if a new row was inserted, False if URL already existed."""
         url = item.get("url")
+        if await is_url_processed(url):
+            logger.info(f"Skipping duplicate (Redis): {url}")
+            self.duplicates_skipped += 1
+            return False
+        book_data = BookCreate(
+            title=item.get("title"),
+            price=item.get("price"),
+            url=url,
+            raw_data=item.get("raw_data"),
+        )
         async with AsyncSessionLocal() as session:
-            if await book_exists_by_url(session, url):
-                logger.debug("Skipping duplicate: %s", url)
-                return False
-            book_data = BookCreate(
-                title=item.get("title"),
-                price=item.get("price"),
-                url=url,
-                raw_data=item.get("raw_data"),
-            )
             await insert_book(session, book_data)
-            return True
+        return True
 
     async def process_item(self, item: Item, spider: Spider) -> Item:
         try:
             if await self._save_book(item):
                 logger.debug("Saved to DB: %s", item.get("title"))
         except IntegrityError:
+            self.duplicates_skipped += 1
             logger.warning(f"Duplicate skipped (IntegrityError): {item.get('url')}")
         except Exception as e:
             logger.error(f"Failed to save {item.get('title')}: {e}")
