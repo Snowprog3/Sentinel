@@ -26,6 +26,10 @@ USER_AGENT = "Sentinel Bookstore Crawler (+http://example.com)"
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
+# Уровень логов Scrapy (по умолчанию INFO — видны строки «Crawled (200)…» и т.п.).
+# WARNING — тише консоль. Детали пайплайна: logger.debug → смотреть с scrapy crawl -L DEBUG
+# LOG_LEVEL = "WARNING"
+LOG_LEVEL = "DEBUG"
 # Concurrency and throttling settings
 # CONCURRENT_REQUESTS = 16
 CONCURRENT_REQUESTS_PER_DOMAIN = 8

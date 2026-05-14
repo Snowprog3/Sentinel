@@ -3,10 +3,21 @@ from pathlib import Path
 
 import pytest
 
-# Добавляем src/ в sys.path, чтобы тесты могли импортировать модули из него
-src_path = Path(__file__).parent / "src"
+root = Path(__file__).parent.resolve()
+src_path = root / "src"
+
+# Репозиторий: from src.* (как в bookstore.pipelines)
+if str(root) not in sys.path:
+    sys.path.insert(0, str(root))
+
+# Скрипты вроде mini_project: from error_handler, from parser, ...
 if src_path.exists() and str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
+
+# Scrapy-проект: import bookstore
+bookstore_project = src_path / "bookstore"
+if bookstore_project.exists() and str(bookstore_project) not in sys.path:
+    sys.path.insert(0, str(bookstore_project))
 
 
 @pytest.fixture(scope="module")
