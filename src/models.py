@@ -15,6 +15,7 @@ class Book(Base):
     price: Mapped[str | None] = mapped_column(String(32), nullable=True)
     url: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
     raw_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+    raw_data_key: Mapped[str | None] = mapped_column(String(512), nullable=True, default=None)
 
     __table_args__ = (
         Index("idx_title", "title"),

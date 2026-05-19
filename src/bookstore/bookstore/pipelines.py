@@ -1,0 +1,115 @@
+import logging
+
+from scrapy import Item, Spider, signals
+from scrapy.exceptions import DropItem
+from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
+
+from src.artifact_saver import upload_raw_html
+from src.crud import insert_book
+from src.database import AsyncSessionLocal, engine
+from src.models import Book
+from src.redis_client import is_url_processed
+from src.schemas import BookCreate, NormalizedBook, ParsedBook, RawBookItem
+
+logger = logging.getLogger(__name__)
+
+
+class ValidationPipeline:
+    """Проверяет и очищает данные через трёхуровневые Pydantic-контракты."""
+
+    def process_item(self, item: Item, spider: Spider) -> Item:
+        # 1. Сохраняем сырые данные
+        raw = RawBookItem(**dict(item))
+
+        try:
+            # 2. Очистка и валидация
+            parsed = ParsedBook(
+                title=raw.title,
+                price=raw.price,
+                url=raw.url,
+            )
+        except Exception as e:
+            logger.warning(f"Dropped {item.get('url')}: {e}")
+            raise DropItem(f"Validation failed: {e}")
+
+        # 3. Нормализация
+        norm = NormalizedBook(
+            title=parsed.title,
+            price=parsed.price,
+            url=str(parsed.url),
+            raw_data=item.get("raw_data"),
+        )
+
+        # 4. Обновляем Item очищенными значениями
+        item["title"] = norm.title
+        item["price"] = str(norm.price) if norm.price else None
+        item["url"] = norm.url
+        # raw_data оставляем как есть, он уже словарь или None
+
+        logger.info(f"Validated: {norm.title}")
+        return item
+
+
+class DatabasePipeline:
+    """Сохраняет валидные книги в PostgreSQL и загружает сырой HTML в MinIO."""
+
+    def __init__(self):
+        self.duplicates_skipped = 0
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        pipeline = cls()
+        crawler.signals.connect(pipeline.spider_closed, signal=signals.spider_closed)
+        return pipeline
+
+    async def spider_closed(self, spider):
+        logger.info(f"Total duplicates skipped: {self.duplicates_skipped}")
+
+    async def _save_book(self, item: Item, spider: Spider) -> None:
+        url = item.get("url")
+
+        # Проверка Redis: если URL уже обработан, пропускаем
+        if await is_url_processed(url):
+            self.duplicates_skipped += 1
+            logger.info(f"Skipping duplicate (Redis): {url}")
+            return
+
+        # Создаём Pydantic-схему для вставки
+        book_data = BookCreate(
+            title=item.get("title"),
+            price=item.get("price"),
+            url=url,
+            raw_data=item.get("raw_data"),
+        )
+
+        async with AsyncSessionLocal() as session:
+            # Вставляем книгу в БД
+            inserted_book = await insert_book(session, book_data)
+
+            # Загружаем сырой HTML в MinIO, если он есть
+            raw_html = (item.get("raw_data") or {}).get("html", "")
+            if raw_html:
+                try:
+                    key = upload_raw_html(
+                        inserted_book.id, raw_html, {"url": url, "source": spider.name}
+                    )
+                    # Сохраняем ключ MinIO в БД
+                    async with engine.begin() as conn:
+                        await conn.execute(
+                            update(Book).where(Book.id == inserted_book.id).values(raw_data_key=key)
+                        )
+                    logger.info(f"Uploaded HTML to MinIO with key {key}")
+                except Exception as e:
+                    logger.error(f"MinIO upload failed for book {inserted_book.id}: {e}")
+
+    async def process_item(self, item: Item, spider: Spider) -> Item:
+        try:
+            await self._save_book(item, spider)
+            logger.info(f"Saved in DB: {item.get('title')}")
+        except IntegrityError:
+            logger.warning(f"Duplicate skipped (DB): {item.get('url')}")
+        except Exception as e:
+            logger.error(f"Failed to save {item.get('title')}: {e}")
+            raise DropItem(f"Database error = {e}")
+        return item
