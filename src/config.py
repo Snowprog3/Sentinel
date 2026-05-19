@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int = 6379
 
+    MINIO_USER: str
+    MINIO_PASS: str
+    MINIO_HOST: str
+    MINIO_PORT: int
+
     REQUEST_TIMEOUT: float
     DEBUG: bool
 
