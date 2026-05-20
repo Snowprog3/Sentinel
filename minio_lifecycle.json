@@ -1,0 +1,14 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-raw-html",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "books/"
+      },
+      "Expiration": {
+        "Days": 30
+      }
+    }
+  ]
+}

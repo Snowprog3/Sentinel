@@ -1,4 +1,6 @@
 import logging
+import time
+from src.metrics import REQUEST_DURATION, REQUESTS, ERRORS
 
 from scrapy import Item, Spider, signals
 from scrapy.exceptions import DropItem
@@ -68,7 +70,7 @@ class DatabasePipeline:
 
     async def _save_book(self, item: Item, spider: Spider) -> None:
         url = item.get("url")
-
+        start = time.monotonic()
         # Проверка Redis: если URL уже обработан, пропускаем
         if await is_url_processed(url):
             self.duplicates_skipped += 1
@@ -102,14 +104,19 @@ class DatabasePipeline:
                     logger.info(f"Uploaded HTML to MinIO with key {key}")
                 except Exception as e:
                     logger.error(f"MinIO upload failed for book {inserted_book.id}: {e}")
+                    ERRORS.labels(source="scrapy", error_type="minio_upload").inc()
+        REQUESTS.labels(source="scrapy").inc()
+        REQUEST_DURATION.labels(source="scrapy").observe(time.monotonic() - start)
 
     async def process_item(self, item: Item, spider: Spider) -> Item:
         try:
             await self._save_book(item, spider)
             logger.info(f"Saved in DB: {item.get('title')}")
         except IntegrityError:
+            ERRORS.labels(source="scrapy", error_type="duplicate").inc()
             logger.warning(f"Duplicate skipped (DB): {item.get('url')}")
         except Exception as e:
+            ERRORS.labels(source="scrapy", error_type=type(e).__name__).inc()
             logger.error(f"Failed to save {item.get('title')}: {e}")
             raise DropItem(f"Database error = {e}")
         return item

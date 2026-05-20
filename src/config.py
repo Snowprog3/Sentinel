@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     MINIO_HOST: str
     MINIO_PORT: int
 
+    GF_USER: str
+    GF_PASS: str
+
     REQUEST_TIMEOUT: float
     DEBUG: bool
 

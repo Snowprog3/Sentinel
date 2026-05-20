@@ -16,6 +16,8 @@ dependencies = [
     "scrapy>=2.15.2",
     "redis[hiredis]>=7.4.0",
     "minio>=7.2.20",
+    "prometheus-client>=0.25.0",
+    "uvicorn>=0.47.0",
 ]
 
 [tool.ruff]
