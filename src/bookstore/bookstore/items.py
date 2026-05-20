@@ -14,3 +14,5 @@ class BookItem(Item):
     availability = Field()
     title = Field()
     raw_data = Field()
+    trace_id = Field()
+    job_id = Field()

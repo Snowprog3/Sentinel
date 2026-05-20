@@ -1,11 +1,18 @@
 from scrapy import Spider
-
+from datetime import datetime, timezone
+import uuid
 from bookstore.items import BookItem
+from src.tracing import generate_trace_id
+
 
 
 class BookDetailSpider(Spider):
     name = "books_detail"
     start_urls = ["http://books.toscrape.com"]
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.job_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}" # noqa
+
 
     def parse(self, response):
         """Collect card of books from main page"""
@@ -28,4 +35,6 @@ class BookDetailSpider(Spider):
         item["availability"] = " ".join(availability_text).strip()
         # Сохраняем весь HTML
         item["raw_data"] = {"html": response.text}
+        item["trace_id"] = generate_trace_id()
+        item["job_id"] = self.job_id
         yield item

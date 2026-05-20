@@ -69,12 +69,14 @@ class DatabasePipeline:
         logger.info(f"Total duplicates skipped: {self.duplicates_skipped}")
 
     async def _save_book(self, item: Item, spider: Spider) -> None:
+        trace_id = item["trace_id"] if "trace_id" in item else "unknown"
+        job_id = spider.job_id if hasattr(spider, "job_id") else "unknown"
         url = item.get("url")
         start = time.monotonic()
         # Проверка Redis: если URL уже обработан, пропускаем
         if await is_url_processed(url):
             self.duplicates_skipped += 1
-            logger.info(f"Skipping duplicate (Redis): {url}")
+            logger.info(f"[{item['trace_id']}] Skipped duplicate (Redis): {url}")            
             return
 
         # Создаём Pydantic-схему для вставки
@@ -94,12 +96,15 @@ class DatabasePipeline:
             if raw_html:
                 try:
                     key = upload_raw_html(
-                        inserted_book.id, raw_html, {"url": url, "source": spider.name}
+                        inserted_book.id, raw_html, {"url": url, "source": spider.name, "trace_id": trace_id, "job_id": job_id} # noqa
                     )
+                    updated_raw_data = {**item.get("raw_data", {}), "trace_id": trace_id, "job_id": job_id}
                     # Сохраняем ключ MinIO в БД
                     async with engine.begin() as conn:
                         await conn.execute(
-                            update(Book).where(Book.id == inserted_book.id).values(raw_data_key=key)
+                            update(Book)
+                            .where(Book.id == inserted_book.id)
+                            .values(raw_data=updated_raw_data, raw_data_key=key)
                         )
                     logger.info(f"Uploaded HTML to MinIO with key {key}")
                 except Exception as e:
@@ -111,7 +116,7 @@ class DatabasePipeline:
     async def process_item(self, item: Item, spider: Spider) -> Item:
         try:
             await self._save_book(item, spider)
-            logger.info(f"Saved in DB: {item.get('title')}")
+            logger.info(f"[{item['trace_id']}] Saved to DB and MinIO")
         except IntegrityError:
             ERRORS.labels(source="scrapy", error_type="duplicate").inc()
             logger.warning(f"Duplicate skipped (DB): {item.get('url')}")
