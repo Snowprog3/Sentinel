@@ -12,6 +12,7 @@ from src.crud import insert_book
 from src.database import AsyncSessionLocal, engine
 from src.metrics import ERRORS, REGISTRY, REQUEST_DURATION, REQUESTS
 from src.models import Book
+from src.otel import tracer
 from src.redis_client import is_url_processed
 from src.schemas import BookCreate, NormalizedBook, ParsedBook, RawBookItem
 
@@ -83,51 +84,68 @@ class DatabasePipeline:
         job_id = spider.job_id if hasattr(spider, "job_id") else "unknown"
         url = item.get("url")
         start = time.monotonic()
-        # Проверка Redis: если URL уже обработан, пропускаем
-        if await is_url_processed(url):
-            self.duplicates_skipped += 1
-            logger.info(f"[{item['trace_id']}] Skipped duplicate (Redis): {url}")
-            return
+        with tracer.start_as_current_span("save-book") as span:
+            span.set_attribute("book_url", url)
+            span.set_attribute("trace_id", trace_id)
 
-        # Создаём Pydantic-схему для вставки
-        book_data = BookCreate(
-            title=item.get("title"),
-            price=item.get("price"),
-            url=url,
-            raw_data=item.get("raw_data"),
-        )
+            # Проверка Redis: если URL уже обработан, пропускаем
+            with tracer.start_as_current_span("redis-check") as redis_span:
+                redis_span.set_attribute("redis_key", url)
+                if await is_url_processed(url):
+                    self.duplicates_skipped += 1
+                    logger.info(f"[{item['trace_id']}] Skipped duplicate (Redis): {url}")
+                    return
 
-        async with AsyncSessionLocal() as session:
-            # Вставляем книгу в БД
-            inserted_book = await insert_book(session, book_data)
+            # Создаём Pydantic-схему для вставки
+            with tracer.start_as_current_span("insert_book") as db_span:
+                db_span.set_attribute("db.operation", "INSERT")
+                book_data = BookCreate(
+                    title=item.get("title"),
+                    price=item.get("price"),
+                    url=url,
+                    raw_data=item.get("raw_data"),
+                )
 
-            # Загружаем сырой HTML в MinIO, если он есть
-            raw_html = (item.get("raw_data") or {}).get("html", "")
-            if raw_html:
-                try:
-                    key = upload_raw_html(
-                        inserted_book.id,
-                        raw_html,
-                        {"url": url, "source": spider.name, "trace_id": trace_id, "job_id": job_id},  # noqa
-                    )
-                    updated_raw_data = {
-                        **item.get("raw_data", {}),
-                        "trace_id": trace_id,
-                        "job_id": job_id,
-                    }  # noqa
-                    # Сохраняем ключ MinIO в БД
-                    async with engine.begin() as conn:
-                        await conn.execute(
-                            update(Book)
-                            .where(Book.id == inserted_book.id)
-                            .values(raw_data=updated_raw_data, raw_data_key=key)
-                        )
-                    logger.info(f"Uploaded HTML to MinIO with key {key}")
-                except Exception as e:
-                    logger.error(f"MinIO upload failed for book {inserted_book.id}: {e}")
-                    ERRORS.labels(source="scrapy", error_type="minio_upload").inc()
-        REQUESTS.labels(source="scrapy").inc()
-        REQUEST_DURATION.labels(source="scrapy").observe(time.monotonic() - start)
+                async with AsyncSessionLocal() as session:
+                    # Вставляем книгу в БД
+                    inserted_book = await insert_book(session, book_data)
+
+                # Загружаем сырой HTML в MinIO, если он есть
+                raw_html = (item.get("raw_data") or {}).get("html", "")
+                if raw_html:
+                    with tracer.start_as_current_span("upload_minio") as minio_span:
+                        minio_span.set_attribute("minio.bucket", "sentinel_raw")
+                        try:
+                            key = upload_raw_html(
+                                inserted_book.id,
+                                raw_html,
+                                {
+                                    "url": url,
+                                    "source": spider.name,
+                                    "trace_id": trace_id,
+                                    "job_id": job_id,
+                                },  # noqa
+                            )
+                            updated_raw_data = {
+                                **item.get("raw_data", {}),
+                                "trace_id": trace_id,
+                                "job_id": job_id,
+                            }  # noqa
+                            # Сохраняем ключ MinIO в БД
+                            with tracer.start_as_current_span("update_bd_key") as update_span:
+                                update_span.set_attribute("db.operation", "UPDATE")
+                                async with engine.begin() as conn:
+                                    await conn.execute(
+                                        update(Book)
+                                        .where(Book.id == inserted_book.id)
+                                        .values(raw_data=updated_raw_data, raw_data_key=key)
+                                    )
+                            logger.info(f"Uploaded HTML to MinIO with key {key}")
+                        except Exception as e:
+                            logger.error(f"MinIO upload failed for book {inserted_book.id}: {e}")
+                            ERRORS.labels(source="scrapy", error_type="minio_upload").inc()
+            REQUESTS.labels(source="scrapy").inc()
+            REQUEST_DURATION.labels(source="scrapy").observe(time.monotonic() - start)
 
     async def process_item(self, item: Item, spider: Spider) -> Item:
         try:

@@ -4,14 +4,14 @@ REGISTRY = CollectorRegistry()
 
 
 REQUESTS = Counter(
-    "sentinel requests",
+    "sentinel_requests",
     "Total number of requests made by Sentinel",
     ["source"],  # источник  _save_book, mini_project, scrapy
     registry=REGISTRY,
 )
 
 ERRORS = Counter(
-    "sentinel errors",
+    "sentinel_errors",
     "Total numbers of requests errors",
     ["source", "error_type"],
     registry=REGISTRY,  # error_type: network, timeout, http
