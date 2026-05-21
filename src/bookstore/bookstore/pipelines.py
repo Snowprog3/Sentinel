@@ -83,7 +83,7 @@ class DatabasePipeline:
         trace_id = item["trace_id"] if "trace_id" in item else "unknown"
         job_id = spider.job_id if hasattr(spider, "job_id") else "unknown"
         url = item.get("url")
-        start = time.monotonic()
+
         with tracer.start_as_current_span("save-book") as span:
             span.set_attribute("book_url", url)
             span.set_attribute("trace_id", trace_id)
@@ -144,14 +144,17 @@ class DatabasePipeline:
                         except Exception as e:
                             logger.error(f"MinIO upload failed for book {inserted_book.id}: {e}")
                             ERRORS.labels(source="scrapy", error_type="minio_upload").inc()
-            REQUESTS.labels(source="scrapy").inc()
-            REQUEST_DURATION.labels(source="scrapy").observe(time.monotonic() - start)
 
     async def process_item(self, item: Item, spider: Spider) -> Item:
+        start = time.monotonic()
+        status = "error"
         try:
-            await self._save_book(item, spider)
+            was_duplicate = await self._save_book(item, spider)
+            status = "duplicate_redis" if was_duplicate else "saved"
             logger.info(f"[{item['trace_id']}] Saved to DB and MinIO")
+            return item
         except IntegrityError:
+            status = "duplicate_db"
             ERRORS.labels(source="scrapy", error_type="duplicate").inc()
             logger.warning(f"Duplicate skipped (DB): {item.get('url')}")
         except Exception as e:
@@ -159,4 +162,7 @@ class DatabasePipeline:
             ERRORS.labels(source="scrapy", error_type=error_label).inc()
             logger.error(f"Failed to save {item.get('title')}: {e}")
             raise DropItem(f"Database error = {e}")
-        return item
+        finally:
+            REQUESTS.labels(source="scrapy", status=status).inc()
+            REQUEST_DURATION.labels(source="scrapy", status=status).observe(time.monotonic() - start)
+
