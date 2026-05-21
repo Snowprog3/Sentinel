@@ -10,6 +10,7 @@ services:
       - DB_PORT=5432
       - REDIS_HOST=cache
       - OTEL_SERVICE_NAME=sentinel
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
     depends_on:
       db:
         condition: service_healthy
@@ -23,6 +24,8 @@ services:
         condition: service_healthy    
       jaeger:
         condition: service_healthy
+      otel-collector:
+        condition: service_started         
     networks:
       - sentinel-net
     env_file:

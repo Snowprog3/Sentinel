@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     GF_LOG_LEVEL: str
 
     OTEL_SERVICE_NAME: str
+    OTEL_EXPORTER_OTLP_ENDPOINT: str
 
     REQUEST_TIMEOUT: float
     DEBUG: bool
