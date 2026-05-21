@@ -2,6 +2,7 @@ from prometheus_client import CollectorRegistry, Counter, Histogram, make_asgi_a
 
 REGISTRY = CollectorRegistry()
 
+
 REQUESTS = Counter(
     "sentinel requests",
     "Total number of requests made by Sentinel",

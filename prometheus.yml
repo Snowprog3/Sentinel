@@ -1,7 +1,8 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 5s
 
 scrape_configs:
   - job_name: "sentinel"
+    #honor_timestamps: false
     static_configs:
-      - targets: ["172.17.0.1:8000"]    # ← IP шлюза Docker (замените на ваш)
+      - targets: ["localhost:8000"]
