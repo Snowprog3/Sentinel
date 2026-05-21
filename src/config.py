@@ -27,6 +27,9 @@ class Settings(BaseSettings):
 
     GF_USER: str
     GF_PASS: str
+    GF_LOG_LEVEL: str
+
+    OTEL_SERVICE_NAME: str
 
     REQUEST_TIMEOUT: float
     DEBUG: bool

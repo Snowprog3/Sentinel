@@ -21,7 +21,7 @@ async def update_raw_data() -> None:
     # 1. Собираем идентификаторы и URL нужных книг
     async with engine.begin() as conn:
         stmt = select(Book.id, Book.url).where(
-            Book.raw_data.is_(None) | (Book.raw_data.has_key("html") == False)
+            Book.raw_data.is_(None) | (not Book.raw_data.has_key("html"))
         )
         result = await conn.execute(stmt)
         books = result.all()

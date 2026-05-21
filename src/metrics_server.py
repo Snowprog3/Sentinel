@@ -1,4 +1,5 @@
 import uvicorn
+
 from src.metrics import metrics_app
 
 if __name__ == "__main__":

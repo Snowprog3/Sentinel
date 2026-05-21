@@ -1,6 +1,5 @@
 import logging
 import time
-from src.metrics import REQUEST_DURATION, REQUESTS, ERRORS
 
 from scrapy import Item, Spider, signals
 from scrapy.exceptions import DropItem
@@ -10,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from src.artifact_saver import upload_raw_html
 from src.crud import insert_book
 from src.database import AsyncSessionLocal, engine
+from src.metrics import ERRORS, REQUEST_DURATION, REQUESTS
 from src.models import Book
 from src.redis_client import is_url_processed
 from src.schemas import BookCreate, NormalizedBook, ParsedBook, RawBookItem
@@ -76,7 +76,7 @@ class DatabasePipeline:
         # Проверка Redis: если URL уже обработан, пропускаем
         if await is_url_processed(url):
             self.duplicates_skipped += 1
-            logger.info(f"[{item['trace_id']}] Skipped duplicate (Redis): {url}")            
+            logger.info(f"[{item['trace_id']}] Skipped duplicate (Redis): {url}")
             return
 
         # Создаём Pydantic-схему для вставки
@@ -96,9 +96,15 @@ class DatabasePipeline:
             if raw_html:
                 try:
                     key = upload_raw_html(
-                        inserted_book.id, raw_html, {"url": url, "source": spider.name, "trace_id": trace_id, "job_id": job_id} # noqa
+                        inserted_book.id,
+                        raw_html,
+                        {"url": url, "source": spider.name, "trace_id": trace_id, "job_id": job_id},  # noqa
                     )
-                    updated_raw_data = {**item.get("raw_data", {}), "trace_id": trace_id, "job_id": job_id}
+                    updated_raw_data = {
+                        **item.get("raw_data", {}),
+                        "trace_id": trace_id,
+                        "job_id": job_id,
+                    }  # noqa
                     # Сохраняем ключ MinIO в БД
                     async with engine.begin() as conn:
                         await conn.execute(

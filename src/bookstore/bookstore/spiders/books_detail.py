@@ -1,18 +1,21 @@
-from scrapy import Spider
-from datetime import datetime, timezone
 import uuid
+from datetime import datetime, timezone
+
+from scrapy import Spider
+
 from bookstore.items import BookItem
 from src.tracing import generate_trace_id
-
 
 
 class BookDetailSpider(Spider):
     name = "books_detail"
     start_urls = ["http://books.toscrape.com"]
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.job_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}" # noqa
-
+        self.job_id = (
+            f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"  # noqa
+        )
 
     def parse(self, response):
         """Collect card of books from main page"""

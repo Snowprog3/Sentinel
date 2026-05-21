@@ -120,7 +120,7 @@ class RetryWithBackoffMiddleware:
         # Решаем, заслуживает ли ошибка повтора
         if isinstance(exception, (TimeoutError, DNSLookupError, ConnectionRefusedError)):
             logger.info(
-                f"Retrying {request.url} due to {exception.__class__.__name__} (attempt {retry_count})"
+                f"Retrying {request.url} due to {exception.__class__.__name__} (attempt {retry_count})"  # noqa
             )
         else:
             # для остальных ошибок не повторяем
