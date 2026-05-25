@@ -12,7 +12,7 @@ class BookDetailSpider(Spider):
     start_urls = ["http://books.toscrape.com"]
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(self, *args, **kwargs)
         self.job_id = (
             f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"  # noqa
         )

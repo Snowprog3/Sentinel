@@ -1,6 +1,18 @@
-from prometheus_client import CollectorRegistry, Counter, Histogram, make_asgi_app
+import logging
+import os
+
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Histogram,
+    make_asgi_app,
+    start_http_server,
+)
+
+logger = logging.getLogger(__name__)
 
 REGISTRY = CollectorRegistry()
+_metrics_server_started = False
 
 
 REQUESTS = Counter(
@@ -26,3 +38,28 @@ REQUEST_DURATION = Histogram(
 )
 
 metrics_app = make_asgi_app(registry=REGISTRY)
+
+
+def start_metrics_server(port: int | None = None) -> bool:
+    """Start Prometheus HTTP server once per process. Returns False if port is busy."""
+    global _metrics_server_started
+    if _metrics_server_started:
+        return True
+
+    if port is None:
+        port = int(os.environ.get("METRICS_PORT", "8000"))
+
+    try:
+        start_http_server(port, registry=REGISTRY)
+    except OSError as exc:
+        logger.warning(
+            "Prometheus metrics server not started on port %s: %s. "
+            "Counters still update in-process but are not exposed via HTTP.",
+            port,
+            exc,
+        )
+        return False
+
+    _metrics_server_started = True
+    logger.info("Prometheus metrics server started on port %s", port)
+    return True

@@ -61,9 +61,11 @@ DOWNLOADER_MIDDLEWARES = {
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
-# EXTENSIONS = {
-#    "scrapy.extensions.telnet.TelnetConsole": None,
-# }
+EXTENSIONS = {
+    "bookstore.extensions.PrometheusMetricsExtension": 500,
+}
+PROMETHEUS_METRICS_ENABLED = True
+METRICS_PORT = 8000
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html

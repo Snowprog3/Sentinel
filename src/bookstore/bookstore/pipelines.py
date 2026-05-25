@@ -1,7 +1,6 @@
 import logging
 import time
 
-from prometheus_client import start_http_server
 from scrapy import Item, Spider, signals
 from scrapy.exceptions import DropItem
 from sqlalchemy import update
@@ -10,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from src.artifact_saver import upload_raw_html
 from src.crud import insert_book
 from src.database import AsyncSessionLocal, engine
-from src.metrics import ERRORS, REGISTRY, REQUEST_DURATION, REQUESTS
+from src.metrics import ERRORS, REQUEST_DURATION, REQUESTS
 from src.models import Book
 from src.otel import tracer
 from src.redis_client import is_url_processed
@@ -61,20 +60,12 @@ class DatabasePipeline:
 
     def __init__(self):
         self.duplicates_skipped = 0
-        self._metrics_started = False
 
     @classmethod
     def from_crawler(cls, crawler):
         pipeline = cls()
-        crawler.signals.connect(pipeline.spider_opened, signal=signals.spider_opened)
         crawler.signals.connect(pipeline.spider_closed, signal=signals.spider_closed)
         return pipeline
-
-    def spider_opened(self, spider):
-        if not self._metrics_started:
-            start_http_server(8000, registry=REGISTRY)
-            self._metrics_started = True
-            logger.info("Prometheus metrics server started on port 8000")
 
     async def spider_closed(self, spider):
         logger.info(f"Total duplicates skipped: {self.duplicates_skipped}")
