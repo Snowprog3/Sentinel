@@ -12,7 +12,7 @@ class BookDetailSpider(Spider):
     start_urls = ["http://books.toscrape.com"]
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.job_id = (
             f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"  # noqa
         )
@@ -24,10 +24,11 @@ class BookDetailSpider(Spider):
             yield response.follow(link, self.parse_book)
 
         # Pagination catalog
-       # next_page = response.css("li.next a::attr(href)").get()
-        # next_page = response.css("h3 a::attr(href)").get()
-       # if next_page:
-       #     yield response.follow(next_page, callback=self.parse)
+
+    # next_page = response.css("li.next a::attr(href)").get()
+    # next_page = response.css("h3 a::attr(href)").get()
+    # if next_page:
+    #     yield response.follow(next_page, callback=self.parse)
 
     def parse_book(self, response):
         """Extract data from card of book and save raw HTML"""

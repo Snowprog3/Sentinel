@@ -163,5 +163,6 @@ class DatabasePipeline:
             raise DropItem(f"Database error = {e}")
         finally:
             REQUESTS.labels(source="scrapy", status=status).inc()
-            REQUEST_DURATION.labels(source="scrapy", status=status).observe(time.monotonic() - start)
-
+            REQUEST_DURATION.labels(source="scrapy", status=status).observe(
+                time.monotonic() - start
+            )  # noqa

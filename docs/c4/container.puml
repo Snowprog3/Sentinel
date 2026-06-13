@@ -1,0 +1,32 @@
+@startuml Sentinel_Container
+!include <C4/C4_Container>
+
+Person(developer, "Разработчик", "Запускает парсер и анализирует результаты")
+
+System_Ext(books_site, "Books to Scrape", "Тестовый сайт (books.toscrape.com)")
+
+System_Boundary(sentinel, "Sentinel System v1 (Q1)") {
+    Container(parser, "Parser", "Python/Scrapy", "Обходит каталог, извлекает данные, сохраняет структурированные записи и сырой HTML")
+
+    Container(postgres, "PostgreSQL", "SQL (asyncpg)", "Хранит книги: title, price, url, raw_data (JSONB)")
+    Container(redis, "Redis", "In-Memory KV", "Дедупликация URL (NX + TTL)")
+    Container(minio, "MinIO", "Object Storage (S3 API)", "Хранит сырой HTML каждой книги (raw_data_key)")
+
+    Container(prometheus, "Prometheus", "Monitoring", "Собирает метрики sentinel_* с parser")
+    Container(grafana, "Grafana", "Dashboard", "Визуализирует метрики (опционально)")
+    Container(jaeger, "Jaeger", "Tracing", "Принимает и отображает трейсы из parser через OTLP")
+    Container(otel_collector, "OTel Collector", "OTLP HTTP", "Получает трейсы от parser и передаёт в Jaeger")
+}
+
+Rel(developer, parser, "Запускает crawler", "docker compose run / systemd timer")
+Rel(parser, books_site, "Собирает данные", "HTTP")
+
+Rel(parser, postgres, "Сохраняет структурированные данные", "SQL (asyncpg)")
+Rel(parser, redis, "Проверяет URL (NX + TTL)", "TCP/Redis")
+Rel(parser, minio, "Сохраняет сырой HTML", "S3 API")
+
+Rel(parser, otel_collector, "Отправляет спаны", "OTLP HTTP")
+Rel(otel_collector, jaeger, "Экспортирует трейсы", "gRPC")
+Rel(parser, prometheus, "Отдаёт метрики (:8000/metrics)", "HTTP scrape")
+Rel(prometheus, grafana, "Источник данных", "HTTP API")
+@enduml

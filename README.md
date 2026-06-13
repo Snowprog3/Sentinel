@@ -13,8 +13,17 @@
 
 ### Scrapy (`src/bookstore/`)
 
-- **Пауки** — `books` (каталог), `books_detail` (карточки книг + сырой HTML в `raw_data`).
-- **Пайплайны** — `ValidationPipeline` (Pydantic: `RawBookItem` → `ParsedBook` → `NormalizedBook`), `DatabasePipeline` (Redis → Postgres → MinIO, счётчик дубликатов, сигнал `spider_closed`).
+- **Пауки** — `books` (каталог), `books_detail` (карточки книг + сырой HTML в `raw_data`; при старте генерирует `job_id` для всего прогона).
+- **Пайплайны** — оба принимают `(item, spider)` по контракту Scrapy:
+  - `ValidationPipeline` — Pydantic: `RawBookItem` → `ParsedBook` → `NormalizedBook`; невалидный URL/цена → `DropItem`.
+  - `DatabasePipeline` — Redis → Postgres → MinIO:
+    - guard URL (`DropItem`, если URL отсутствует или не строка);
+    - Redis `SET NX` (дедуп, TTL 86400 с): дубликат → метрика `duplicate_redis`, insert пропускается;
+    - insert в Postgres → upload HTML в MinIO → `UPDATE raw_data_key`;
+    - дубликат по unique constraint в БД → метрика `duplicate_db`, item возвращается без падения;
+    - метрики со статусами `saved` / `duplicate_redis` / `duplicate_db` / `error`;
+    - OTLP-спаны: `save-book`, `redis-check`, `insert_book`, `upload_minio`, `update_bd_key`;
+    - счётчик дубликатов Redis и сигнал `spider_closed`.
 - **Downloader middleware** — `RetryWithBackoffMiddleware` для части сетевых ошибок Twisted.
 - **Расширение** — `PrometheusMetricsExtension`: HTTP‑экспортёр метрик на порту `8000` при старте движка Scrapy.
 - **Трассировка** — `trace_id` и `job_id` на item; спаны OTLP в пайплайне (`redis-check`, `insert_book`, `upload_minio` и др.).
@@ -23,14 +32,14 @@
 ### Общее
 
 - **БД** — модель `Book` (`title`, `price`, `url`, `raw_data`, `raw_data_key`), `database.py`, `crud.py`, схемы в `schemas.py`.
-- **MinIO** — `artifact_saver.py`, `minio_client.py`: bucket `sentinel-raw`, ключи вида `books/{id}/raw_html/...`; политики хранения — [docs/retention.md](docs/retention.md), очистка — `cleanup_minio.py`.
+- **MinIO** — `artifact_saver.py`, `minio_client.py`: bucket `sentinel-raw`, ключи вида `books/{id}/raw_html/...`; дополнительные метаданные объекта принимаются как `Mapping[str, str]`; политики хранения — [docs/retention.md](docs/retention.md), очистка — `cleanup_minio.py`.
 - **Redis** — `redis_client.py`: дедуп URL для пайплайна (TTL 86400 с).
 - **Метрики** — `metrics.py`: счётчики `sentinel_requests`, `sentinel_errors`, гистограмма `sentinel_request_duration_seconds` (источники `scrapy`, `mini_project` и др.).
 - **Наблюдаемость** — в Compose: **Prometheus**, **Grafana**, **Jaeger**, **OTEL Collector**; Scrapy отдаёт метрики на `:8000`, трейсы — в collector по OTLP HTTP.
 
 ## Зависимости (основные)
 
-См. [pyproject.toml](pyproject.toml): `httpx`, `loguru`, `parsel`, `sqlalchemy[asyncio]`, `asyncpg`, `alembic`, `pydantic`, `pydantic-settings`, `python-dotenv`, `scrapy`, `redis[hiredis]`, `minio`, `prometheus-client`, `uvicorn`, `opentelemetry-api/sdk/exporter-otlp`. Разработка: `pytest`, `pytest-asyncio`, `respx`, `ruff`, `mypy`.
+См. [pyproject.toml](pyproject.toml): `httpx`, `loguru`, `parsel`, `sqlalchemy[asyncio]`, `asyncpg`, `alembic`, `pydantic`, `pydantic-settings`, `python-dotenv`, `scrapy`, `redis[hiredis]`, `minio`, `prometheus-client`, `uvicorn`, `opentelemetry-api/sdk/exporter-otlp`. Разработка: `pytest`, `pytest-asyncio`, `respx`, `ruff`, `mypy`, `pip-audit`.
 
 ## Структура репозитория
 
@@ -47,8 +56,8 @@
 | `src/database.py` | Async engine и сессии. |
 | `src/models.py` | SQLAlchemy-модели (`Book`, JSONB, `raw_data_key`). |
 | `src/schemas.py` | Схемы Pydantic (пайплайн, CRUD). |
-| `src/crud.py` | Асинхронный CRUD для книг. |
-| `src/artifact_saver.py` | Загрузка raw HTML в MinIO. |
+| `src/crud.py` | Асинхронный CRUD для книг (`get_book_by_title` — одна запись или `None`). |
+| `src/artifact_saver.py` | Загрузка raw HTML в MinIO (метаданные через `Mapping[str, str]`). |
 | `src/minio_client.py` | Клиент MinIO. |
 | `src/cleanup_minio.py` | Удаление устаревших объектов (см. retention). |
 | `src/update_raw.py` | Дозагрузка HTML в MinIO для существующих записей в БД. |
@@ -69,7 +78,8 @@
 | `prometheus.yml` | Scrape target `localhost:8000` (метрики Scrapy). |
 | `otel-collector-config.yaml` | Маршрутизация OTLP → Jaeger. |
 | `minio_lifecycle.json` | Пример lifecycle для MinIO. |
-| `tests/` | Тесты утилит, парсера, HTTP, схем, Redis, пайплайна, метрик и др. |
+| `tests/` | Тесты утилит, парсера, HTTP, схем, Redis, пайплайна (mock `spider`), метрик и др. |
+| `scripts/check.sh` | Полная проверка: mypy → ruff → pip-audit → pytest. |
 | `run.sh` | Линт → формат → `mini_project`. |
 
 ## Требования
@@ -124,6 +134,7 @@ uv run scrapy crawl books_detail
 uv run python src/sql_practice.py
 uv run python src/jsonb_demo.py
 uv run python src/cleanup_minio.py   # очистка старых объектов MinIO
+chmod +x scripts/check.sh && ./scripts/check.sh   # mypy, ruff, pip-audit, pytest
 chmod +x run.sh && ./run.sh
 ```
 
@@ -131,11 +142,16 @@ chmod +x run.sh && ./run.sh
 
 | Команда | Описание |
 |---------|----------|
+| `./scripts/check.sh` | mypy, ruff (lint + format), pip-audit, pytest — рекомендуемый прогон перед коммитом |
+| `uv run mypy .` | Статическая проверка типов (конфиг в `pyproject.toml`, 49+ файлов) |
 | `uv run ruff check .` | Линт |
 | `uv run ruff format .` | Форматирование |
 | `uv run pytest -v` | Тесты |
+| `uv run pip-audit` | Проверка уязвимостей в зависимостях |
 | `uv run alembic upgrade head` | Применить миграции |
 | `uv run alembic revision --autogenerate -m "описание"` | Новая ревизия |
+
+Конфигурация **mypy**: плагин `pydantic.mypy`, `check_untyped_defs = true`. Scrapy-пайплайны и CRUD типизированы явно (`-> Item`, `-> bool`, `Book | None` и т.д.).
 
 ## Docker
 
@@ -199,7 +215,9 @@ docker compose exec parser bash -lc "cd /app/src/bookstore && alembic -c /app/al
 
 - Повторы HTTP для скриптов на **httpx** по политике из `error_handler` не подключены.
 - В Scrapy два слоя повторов: встроенный **RetryMiddleware** и **RetryWithBackoffMiddleware**.
-- После фиксации URL в Redis и ошибки вставки в БД ключ в Redis остаётся до TTL — для повторной обработки нужен согласованный откат.
+- `ValidationPipeline` / `DatabasePipeline`: аргумент `spider` обязателен (контракт Scrapy); в unit-тестах передаётся `MagicMock` (см. `tests/test_pipeline.py`).
+- Redis помечает URL обработанным **до** insert в БД (`SET NX`). Если insert падает, ключ остаётся до TTL (86400 с) — повторная обработка того же URL не произойдёт без ручного сброса.
+- Дубликат по unique constraint в Postgres не бросает `DropItem` — item возвращается, метрика `duplicate_db`.
 - Prometheus в Compose использует `network_mode: host` и скрейпит `localhost:8000` — метрики Scrapy должны быть доступны на хосте при крауле из контейнера `parser`.
 - Коллизии имён файлов при массовой загрузке через `mini_project` возможны при росте объёма.
 - Учитывайте `robots.txt` и условия использования сайтов при реальных сборах.

@@ -1,0 +1,15 @@
+@startuml Sentinel_Context
+!include <C4/C4_Context>
+!include <C4/C4_Container>
+
+Person(developer, "Разработчик", "Запускает парсер и анализирует результаты")
+
+System_Ext(books_site, "Books to Scrape", "Тестовый сайт-источник данных (books.toscrape.com)")
+
+System_Boundary(sentinel, "Sentinel System v1 (Q1)") {
+    Container(parser, "Parser", "Python/Scrapy", "Загружает страницы, извлекает заголовки, цены, URL и сырой HTML")
+}
+
+Rel(developer, parser, "Запускает crawler через", "docker compose run / systemd timer")
+Rel(parser, books_site, "Собирает данные", "HTTP/HTTPS")
+@enduml
