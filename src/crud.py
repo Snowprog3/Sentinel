@@ -28,8 +28,8 @@ async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
     stmt = select(Book).where(Book.title == title)
     result = await session.execute(stmt)
     # Добавляем явное преобразование в list()
-    book_seq = result.scalars().all()
-    return list(book_seq)
+    book = result.scalar_one_or_none()
+    return book
 
 
 async def update_price(session: AsyncSession, book_id: int, new_price: str) -> None:

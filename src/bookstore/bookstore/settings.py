@@ -17,7 +17,7 @@ BOT_NAME = "bookstore"
 SPIDER_MODULES = ["bookstore.spiders"]
 NEWSPIDER_MODULE = "bookstore.spiders"
 
-ADDONS = {}
+ADDONS: dict = {}
 
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent

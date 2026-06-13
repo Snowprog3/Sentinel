@@ -18,7 +18,7 @@ _metrics_server_started = False
 REQUESTS = Counter(
     "sentinel_requests",
     "Total number of requests made by Sentinel",
-    ["source"],  # источник  _save_book, mini_project, scrapy
+    ["source", "status"],  # источник  _save_book, mini_project, scrapy
     registry=REGISTRY,
 )
 
@@ -32,7 +32,7 @@ ERRORS = Counter(
 REQUEST_DURATION = Histogram(
     "sentinel_request_duration_seconds",
     "Request duration in seconds",
-    ["source"],
+    ["source", "status"],
     buckets=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0),
     registry=REGISTRY,
 )

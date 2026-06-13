@@ -70,10 +70,12 @@ class DatabasePipeline:
     async def spider_closed(self, spider):
         logger.info(f"Total duplicates skipped: {self.duplicates_skipped}")
 
-    async def _save_book(self, item: Item, spider: Spider) -> None:
+    async def _save_book(self, item: Item, spider: Spider) -> bool:
         trace_id = item["trace_id"] if "trace_id" in item else "unknown"
         job_id = spider.job_id if hasattr(spider, "job_id") else "unknown"
         url = item.get("url")
+        if not url or not isinstance(url, str):
+            raise DropItem("Missing or invalid url")
 
         with tracer.start_as_current_span("save-book") as span:
             span.set_attribute("book_url", url)
@@ -85,7 +87,7 @@ class DatabasePipeline:
                 if await is_url_processed(url):
                     self.duplicates_skipped += 1
                     logger.info(f"[{item['trace_id']}] Skipped duplicate (Redis): {url}")
-                    return
+                    return True
 
             # Создаём Pydantic-схему для вставки
             with tracer.start_as_current_span("insert_book") as db_span:
@@ -136,18 +138,24 @@ class DatabasePipeline:
                             logger.error(f"MinIO upload failed for book {inserted_book.id}: {e}")
                             ERRORS.labels(source="scrapy", error_type="minio_upload").inc()
 
+        return False
+
     async def process_item(self, item: Item, spider: Spider) -> Item:
         start = time.monotonic()
         status = "error"
         try:
             was_duplicate = await self._save_book(item, spider)
-            status = "duplicate_redis" if was_duplicate else "saved"
+            if was_duplicate:
+                status = "duplicate_redis"
+                return item
+            status = "saved"
             logger.info(f"[{item['trace_id']}] Saved to DB and MinIO")
             return item
         except IntegrityError:
             status = "duplicate_db"
             ERRORS.labels(source="scrapy", error_type="duplicate").inc()
             logger.warning(f"Duplicate skipped (DB): {item.get('url')}")
+            return item
         except Exception as e:
             error_label = type(e).__name__ or "unknown"  # ← гарантируем непустую строку
             ERRORS.labels(source="scrapy", error_type=error_label).inc()
