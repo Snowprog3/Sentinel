@@ -2,6 +2,8 @@
 
 Учебный проект извлечения данных из веба: загрузчики на **httpx**, сохранение в **PostgreSQL** (SQLAlchemy 2 async, **Alembic**, книги с **`raw_data` JSONB** и ключом **`raw_data_key`** в **MinIO**), **Scrapy**‑проект `bookstore` (Books to Scrape), валидация **Pydantic**, дедупликация URL через **Redis**, метрики **Prometheus**, трассировка **OpenTelemetry** → **Jaeger**.
 
+Подробнее по эксплуатации: [docs/runbook.md](docs/runbook.md). Архитектурные решения: [docs/adr/](docs/adr/). C4-диаграммы: [docs/c4/](docs/c4/).
+
 ## Возможности
 
 ### Скрипты на httpx (`src/`)
@@ -16,7 +18,7 @@
 - **Пауки** — `books` (каталог), `books_detail` (карточки книг + сырой HTML в `raw_data`; при старте генерирует `job_id` для всего прогона).
 - **Пайплайны** — оба принимают `(item, spider)` по контракту Scrapy:
   - `ValidationPipeline` — Pydantic: `RawBookItem` → `ParsedBook` → `NormalizedBook`; невалидный URL/цена → `DropItem`.
-  - `DatabasePipeline` — Redis → Postgres → MinIO:
+  - `DatabasePipeline` (async) — Redis → Postgres → MinIO:
     - guard URL (`DropItem`, если URL отсутствует или не строка);
     - Redis `SET NX` (дедуп, TTL 86400 с): дубликат → метрика `duplicate_redis`, insert пропускается;
     - insert в Postgres → upload HTML в MinIO → `UPDATE raw_data_key`;
@@ -26,12 +28,13 @@
     - счётчик дубликатов Redis и сигнал `spider_closed`.
 - **Downloader middleware** — `RetryWithBackoffMiddleware` для части сетевых ошибок Twisted.
 - **Расширение** — `PrometheusMetricsExtension`: HTTP‑экспортёр метрик на порту `8000` при старте движка Scrapy.
-- **Трассировка** — `trace_id` и `job_id` на item; спаны OTLP в пайплайне (`redis-check`, `insert_book`, `upload_minio` и др.).
-- **Выгрузка** — JSON‑фид `FEEDS`: при запуске из `src/bookstore` файл `src/bookstore/data/books.json`.
+- **Трассировка** — `trace_id` на item, `job_id` на item и в метаданных MinIO; OTLP-спаны в пайплайне.
+- **Настройки** — `CONCURRENT_REQUESTS_PER_DOMAIN = 8`, `DOWNLOAD_DELAY = 1`, `LOG_LEVEL = DEBUG` (см. `settings.py`).
+- **Выгрузка** — JSON‑фид `FEEDS`: при запуске из `src/bookstore` файл `data/books.json`.
 
 ### Общее
 
-- **БД** — модель `Book` (`title`, `price`, `url`, `raw_data`, `raw_data_key`), `database.py`, `crud.py`, схемы в `schemas.py`.
+- **БД** — модель `Book` (`title`, `price`, `url` unique, `raw_data` JSONB + GIN-индекс, `raw_data_key`), `database.py`, `crud.py`, схемы в `schemas.py`.
 - **MinIO** — `artifact_saver.py`, `minio_client.py`: bucket `sentinel-raw`, ключи вида `books/{id}/raw_html/...`; дополнительные метаданные объекта принимаются как `Mapping[str, str]`; политики хранения — [docs/retention.md](docs/retention.md), очистка — `cleanup_minio.py`.
 - **Redis** — `redis_client.py`: дедуп URL для пайплайна (TTL 86400 с).
 - **Метрики** — `metrics.py`: счётчики `sentinel_requests`, `sentinel_errors`, гистограмма `sentinel_request_duration_seconds` (источники `scrapy`, `mini_project` и др.).
@@ -70,7 +73,12 @@
 | `src/db_check.py` | Простая проверка окружения БД. |
 | `src/proxy.py` | Сброс `*_proxy` в окружении. |
 | `src/error_handler.py` | Классификация ошибок httpx. |
+| `src/trace_demo.py` | Демо OpenTelemetry-трейсов. |
+| `src/minio_demo.py` | Демо загрузки в MinIO. |
 | `src/bookstore/` | Scrapy: `scrapy.cfg`, пауки, `items`, `pipelines`, `middlewares`, `extensions`, `settings`. |
+| `docs/runbook.md` | Runbook: запуск, health-check, типовые проблемы. |
+| `docs/adr/` | Architecture Decision Records (JSONB vs MongoDB и др.). |
+| `docs/c4/` | C4-диаграммы контекста и контейнеров. |
 | `docs/retention.md` | Сроки хранения артефактов MinIO. |
 | `migrations/` | Ревизии Alembic. |
 | `alembic.ini` | Конфигурация Alembic. |
@@ -78,8 +86,10 @@
 | `prometheus.yml` | Scrape target `localhost:8000` (метрики Scrapy). |
 | `otel-collector-config.yaml` | Маршрутизация OTLP → Jaeger. |
 | `minio_lifecycle.json` | Пример lifecycle для MinIO. |
-| `tests/` | Тесты утилит, парсера, HTTP, схем, Redis, пайплайна (mock `spider`), метрик и др. |
+| `tests/` | 47 pytest-тестов: utils, parser, HTTP, schemas, Redis, pipeline (mock `spider`), metrics, БД и др. |
+| `conftest.py` | `PYTHONPATH` для `src.*`, `bookstore` и Scrapy-проекта. |
 | `scripts/check.sh` | Полная проверка: mypy → ruff → pip-audit → pytest. |
+| `scripts/run_crawl.sh` | Запуск `books_detail` в контейнере Compose. |
 | `run.sh` | Линт → формат → `mini_project`. |
 
 ## Требования
@@ -96,10 +106,10 @@
 ```bash
 git clone <repository-url>
 cd sentinel
-uv sync
+uv sync --group dev
 ```
 
-Скопируйте [.env.example](.env.example) в `.env` и заполните переменные по [`src/config.py`](src/config.py) (БД, Redis, MinIO, Grafana, OTEL). Миграции:
+Скопируйте [.env.example](.env.example) в `.env` и заполните переменные (поля совпадают с [`src/config.py`](src/config.py)). Миграции:
 
 ```bash
 uv run alembic upgrade head
@@ -124,6 +134,12 @@ uv run scrapy crawl books
 uv run scrapy crawl books_detail
 ```
 
+Через Docker (см. также `./scripts/run_crawl.sh`):
+
+```bash
+docker compose run --rm parser bash -c "cd /app/src/bookstore && scrapy crawl books_detail"
+```
+
 Перед запуском: Postgres (миграции), Redis, MinIO. При крауле поднимается экспортёр метрик на **http://127.0.0.1:8000/metrics** (порт задаётся `METRICS_PORT` в `settings.py`).
 
 Проверка сети до демо-сайта: `getent hosts books.toscrape.com`.
@@ -143,10 +159,10 @@ chmod +x run.sh && ./run.sh
 | Команда | Описание |
 |---------|----------|
 | `./scripts/check.sh` | mypy, ruff (lint + format), pip-audit, pytest — рекомендуемый прогон перед коммитом |
-| `uv run mypy .` | Статическая проверка типов (конфиг в `pyproject.toml`, 49+ файлов) |
+| `uv run mypy .` | Статическая проверка типов (49 файлов, конфиг в `pyproject.toml`) |
 | `uv run ruff check .` | Линт |
 | `uv run ruff format .` | Форматирование |
-| `uv run pytest -v` | Тесты |
+| `uv run pytest -v` | 47 тестов |
 | `uv run pip-audit` | Проверка уязвимостей в зависимостях |
 | `uv run alembic upgrade head` | Применить миграции |
 | `uv run alembic revision --autogenerate -m "описание"` | Новая ревизия |
@@ -196,7 +212,7 @@ docker compose exec parser bash -lc "cd /app/src/bookstore && alembic -c /app/al
 
 ## Переменные окружения
 
-Поля **`Settings`** в [`src/config.py`](src/config.py) (файл [`.env.example`](.env.example) может быть неполным — ориентируйтесь на `config.py`):
+Поля **`Settings`** в [`src/config.py`](src/config.py) — шаблон в [`.env.example`](.env.example):
 
 | Переменная | Назначение |
 |------------|------------|
